@@ -1,3 +1,46 @@
+/**
+ * @swagger
+ * tags:
+ *   name: Cart
+ *   description: Shopping cart management operations
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     CartProduct:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         product:
+ *           $ref: '#/components/schemas/Product'
+ *         quantity:
+ *           type: integer
+ *           minimum: 1
+ *         totalPrice:
+ *           type: number
+ *           format: float
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *     
+ *     AddToCartRequest:
+ *       type: object
+ *       required:
+ *         - quantity
+ *       properties:
+ *         quantity:
+ *           type: integer
+ *           minimum: 0
+ *           description: Set to 0 to remove item from cart
+ */
+
 import { Router } from "express";
 import { CartService } from "./cart.service";
 import { ProductRepository } from "../../repositories/product.repository";
@@ -22,21 +65,111 @@ const cartController = new CartController(cartService)
 const validator = new Validator();
 const customerAuthGaurd = new CustomerAuthGaurd(customerRepository, logger, jwtService)
 
-
-// Get Cart by Customer Id
+/**
+ * @swagger
+ * /cart/{customerId}:
+ *   get:
+ *     summary: Get customer's cart
+ *     tags: [Cart]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: customerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Customer's cart items
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/CartProduct'
+ *       401:
+ *         description: Unauthorized - only the cart owner can view their cart
+ */
 router.get("/:customerId", customerAuthGaurd.authorise({id: true}), validator.single(IdDto, "params"), cartController.getCart);
 
-// Update Cart
+/**
+ * @swagger
+ * /cart/{productId}:
+ *   put:
+ *     summary: Add/Update product in cart
+ *     description: Add product to cart or update its quantity. Set quantity to 0 to remove item.
+ *     tags: [Cart]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddToCartRequest'
+ *     responses:
+ *       200:
+ *         description: Cart updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/CartProduct'
+ *       400:
+ *         description: Invalid quantity or insufficient stock
+ *       404:
+ *         description: Product not found
+ */
 router.put("/:productId", validator.multiple([
     { schema: IdDto, source: "params" },
     { schema: AddToCartDto, source: "body" }
 ]), customerAuthGaurd.authorise(), cartController.updateCart);
 
-// Clear Cart
+/**
+ * @swagger
+ * /cart/clear:
+ *   delete:
+ *     summary: Clear entire cart
+ *     tags: [Cart]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       204:
+ *         description: Cart cleared successfully
+ */
 router.delete("/clear", customerAuthGaurd.authorise(), cartController.removeAllFromCart);
 
-// Remove product from Cart
+/**
+ * @swagger
+ * /cart/{productId}:
+ *   delete:
+ *     summary: Remove product from cart
+ *     tags: [Cart]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Product removed from cart successfully
+ *       404:
+ *         description: Product not found in cart
+ */
 router.delete("/:productId",  validator.single(IdDto, "params"), customerAuthGaurd.authorise(), cartController.removeFromCart);
-
 
 export default router;
